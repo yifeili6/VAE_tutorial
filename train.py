@@ -50,36 +50,12 @@ class Model(nn.Module):
         return loss
 
 
-if __name__ == '__main__':
-    # arguemnts
-    parser = argparse.ArgumentParser(description='Training')
-    args = parser.parse_args()
-    args.batch_size = 16
-    args.split_portion = [60, 80]
-    args.split_method = 'middle'
-    args.num_workers = 1
-    args.which_model = "vae"    
-    args.nolog = True
-    epochs = 40
-
-    # dataloader  
-    data = DataModule(args)
-    data.setup()
-    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-
-    # initialize model
-    B, N, C = next(iter(traindata)).shape
-    model_config = {'input_dim': N*C}
-    model_configs = {'model_configs': model_config}  
-    loss_config = {'M_N': 0.005}
-    
-    model = Model(args, **model_configs) # C_out
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-
-    optimizer = torch.optim.Adam(model.parameters())
-
+def train_nn(args, 
+          model,
+          traindata, 
+          valdata, 
+          save_model = True,):
+     # train loop
     model.train()
     for epoch in range(epochs):
         # train loop
@@ -104,13 +80,72 @@ if __name__ == '__main__':
             loss = loss_['loss']
             print(f"this is validation loss: {loss}")
 
-        # if val_loss < best:
-        #     best = val_loss
-        #     best_model = copy.deepcopy(model)
-        #     torch.save(dict(model= best_model.state_dict(), optimizer = optimizer.state_dict()), 'best_model.pth')
-        
+def train_pca(args, 
+              model, 
+              traindata,
+              valdata,
+              savee_model = True):
+    pass 
+    
 
-    # print(loss["loss"])
-    # print(loss["Reconstruction_Loss"])
-    # print(loss["KLD"])
+if __name__ == '__main__':
+    # arguemnts
+    parser = argparse.ArgumentParser(description='Training')
+    args = parser.parse_args()
+    args.batch_size = 16
+    args.split_portion = [60, 80]
+    args.split_method = 'middle'
+    args.num_workers = 1
+    args.which_model = "vae"   
+    args.nolog = True
+    epochs = 40
+
+    # dataloader  
+    data = DataModule(args)
+    data.setup()
+    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+
+
+    # initialize model (VAE)
+    B, N, C = next(iter(traindata)).shape
+    model_config = {'input_dim': N*C}
+    model_configs = {'model_configs': model_config}  
+    loss_config   = {'M_N': 0.005}
+    args.model_configs = model_configs  
+    args.loss_config = loss_config
+
+
+    model = Model(args, **model_configs) # C_out
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+
+    optimizer = torch.optim.Adam(model.parameters())
+
+    # train loop
+    model.train()
+    for epoch in range(epochs):
+        # train loop
+        for batch_idx, data in enumerate(traindata):      
+            if torch.cuda.is_available():
+                data = data.cuda()
+ 
+            optimizer.zero_grad()
+            loss_ = model.loss_function(data, args, **loss_config)
+            loss = loss_['loss']
+            loss.backward()
+            optimizer.step()
+        
+            print(loss)
+
+
+        # validation loop
+        for batch_idx, data in enumerate(valdata):
+            if torch.cuda.is_available():
+                data = data.cuda()
+            loss_ = model.loss_function(data, args, **loss_config)
+            loss = loss_['loss']
+            print(f"this is validation loss: {loss}")
+
+
 
