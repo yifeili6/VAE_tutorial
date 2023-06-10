@@ -1,4 +1,4 @@
-from model import ConvVAE, VAE, AE
+from model import ConvVAE, VAE, AE, PCA_torch
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -50,6 +50,17 @@ class Model(nn.Module):
         return loss
 
 
+def train(args, 
+          model, 
+          traindata,
+          valdata,):
+    if args.which_model == "pca":
+        train_pca(args, model, traindata, valdata)
+    if args.which_model in ['vae', "conv_vae", "ae"]:
+        train_nn(args, model, traindata, valdata)
+
+    
+
 def train_nn(args, 
           model,
           traindata, 
@@ -87,6 +98,20 @@ def train_pca(args,
               savee_model = True):
     pass 
     
+def load_data_nn(args):
+    # dataloader  
+    data = DataModule(args)
+    data.setup()
+    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+    return traindata, valdata, testdata
+
+def laod_data_pca(args):
+    pass
+    # data = DataModule(args)
+    # data.setup()
+    # traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+    # trainset, valset, test = train_dataloaders.dataset.dataset, val_dataloaders.dataset.dataset
+
 
 if __name__ == '__main__':
     # arguemnts

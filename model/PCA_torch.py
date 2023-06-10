@@ -9,11 +9,13 @@ Tensor = TypeVar('torch.tensor')
 
 
 class PCA_torch(torch.nn.Module):
-    def __init__(self, **kwargs):
+    def __init__(self, 
+                 args: argparse.ArgumentParser,
+                 **kwargs:dict):
         super().__init__()
         
         full_matrices = kwargs.get("full_matrices", False)
-        n_components_ = kwargs.get("n_components", 6)
+        n_components_ = kwargs.get("n_components", 16)
         return_logp = kwargs.get("return_logp", False)
 
         n_components = n_components_ 
@@ -77,9 +79,7 @@ class PCA_torch(torch.nn.Module):
 
         return self
 
-    def forward(self, X: torch.Tensor):
-        assert self.fitted.item(), "Not fitted yet!"
-        return self.transform(X)
+
 
     # Below:
     # https://github.com/scikit-learn/scikit-learn/blob/dc580a8ef5ee2a8aea80498388690e2213118efd/sklearn/decomposition/_base.py#L19:~:text=def%20transform(,return%20X_transformed
@@ -107,8 +107,31 @@ class PCA_torch(torch.nn.Module):
         :return: 
         """
         self.fit(input)
-        z  = self(input)
+        z  = self.transform(input)
         return z
+    
+    def decode(self, z: Tensor, input: Tensor) -> List[Tensor]:
+        """
+        Decodes the input from transformed pca cooridinates
+        :param input: 
+        :return: 
+        """
+        result  = self.inverse_transform(z)
+        return result
+        
+
+    def forward(self, input: Tensor):
+        z = self.encode(input)
+        out = self.decode(z, input)
+        return [out, input, z]
+
+    def loss_function(self, 
+                      *args,
+                      **kwargs) -> dict:
+        recon, input, z = args
+        recons_loss = F.mse_loss(recon, input)
+        return {'loss': recons_loss}
+
 
     def inverse_transform(self, X: torch.Tensor):
         if not self.return_logp:
@@ -152,19 +175,22 @@ class PCA_torch(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    N = 1_000
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    parser = argparse.ArgumentParser(description='Training')
+    args = parser.parse_args()
+   
+
+
+    B = 5000
+    N = 1000
     C = 3
-    n_components=N*C
-    n_components = 64
-    config = dict(full_matrices=False, n_components=n_components)
-    pca = PCA_torch(**config)
-    pca.to("cpu")
-    X = torch.randn(5000,N,C).to("cpu")
-    pca.fit(X)
-    # z = pca.transform(X)
-    z = pca(X)
-    recon = pca.inverse_transform(z)
-    print(pca.components_.pow(2).sum(dim=1))
-    print(pca.explained_variance_ratio_.cumsum(dim=0), "explaining: ", pca.explained_variance_ratio_.cumsum(dim=0)[pca.n_components_-1]*100, "%")
-    print(torch.allclose(X,  recon, atol=1e-3), )
-  
+    x = torch.randn(B, N, C) # (B x C x H x W) 
+
+    model_config = {'full_matrices':False, 'n_components':64}
+
+
+    model = PCA_torch(args, **model_config) # C_out
+    y = model(x)
+    loss = model.loss_function(*y)
+    print(loss)
+    print(torch.allclose(x,  y[0], atol=1e-3), )

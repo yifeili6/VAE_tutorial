@@ -75,8 +75,8 @@ class AE(nn.Module):
         :return: (Tensor) List of latent codes
         """
         input  = rearrange(input, 'b n c -> b (n c)')
-        result = self.encoder(input) 
-        return result
+        z = self.encoder(input) 
+        return z
 
     def decode(self, z: Tensor, input: Tensor = None) -> Tensor:
         """
