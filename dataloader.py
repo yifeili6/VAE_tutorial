@@ -53,11 +53,23 @@ class ProteinDataset(torch.utils.data.Dataset):
 
 
 def extract_trajectory(args):
-    if args.which_model == 'vae':
-        N = 2000 # Number of atoms
-        B = 64   # Batch size
-        data = torch.randn(B, N, 3)
+    N = 1200 # Number of atoms
+    B = 128   # Batch size   
+    if args.which_model =='conv_vae':
+        data = torch.randn(B, 1, N, N)
+        # fake open state data        
+        mean = 100
+        std = 10    
+        data_open = std * data + mean
+        # fake close state data 
+        mean = 200
+        std = 5       
+        data_close = std * data + mean   
+        reference = data_open[0][None]
+        trajectory = torch.cat([data_open, data_close], dim=0)            
 
+    else:
+        data = torch.randn(B, N, 3)
         # fake open state data
         mean = 100
         std = 10    
@@ -66,12 +78,10 @@ def extract_trajectory(args):
         # fake close state data 
         mean = 200
         std = 5       
-        data_close = std * data - mean
+        data_close = std * data + mean
 
         reference = data_open[0][None]
         trajectory = torch.cat([data_open, data_close], dim=0)
-    if args.which_model =='conv_vae':
-        pass
     return reference, trajectory
     
 

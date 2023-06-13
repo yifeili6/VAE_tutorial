@@ -107,10 +107,10 @@ def load_data_nn(args):
 
 def laod_data_pca(args):
     pass
-    # data = DataModule(args)
-    # data.setup()
-    # traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-    # trainset, valset, test = train_dataloaders.dataset.dataset, val_dataloaders.dataset.dataset
+    data = DataModule(args)
+    data.setup()
+    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+    # traindata, valdata, testdata = train_dataloaders.dataset.dataset, val_dataloaders.dataset.dataset
 
 
 if __name__ == '__main__':
