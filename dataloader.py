@@ -10,6 +10,7 @@ class ProteinDataset(torch.utils.data.Dataset):
         super().__init__()
         self.reference = dataset[0]
         self.trajectory = dataset[1]
+        
         # if os.path.exists(args.standard_file):
         #     mean_and_std_of_trained = torch.from_numpy(np.load(args.standard_file))
         #     mean, std = mean_and_std_of_trained[0], mean_and_std_of_trained[1]
@@ -120,9 +121,11 @@ class DataModule():
             self.split_portion = split_portion
             self.split_portion_begin = (split_portion[0] / 100) if split_portion[0] > 1 else split_portion[0]
             self.split_portion_end   = (split_portion[1] / 100) if split_portion[1] > 1 else split_portion[1]
+            
             self.train_data_length_begin = int(len(self.dataset) * self.split_portion_begin)
-            self.train_data_length_end   = int(len(self.dataset) * self.split_portion_end)
-            self.train_data_length       = int(len(self.dataset) * self.split_portion_begin + len(self.dataset)*(1 - self.split_portion_end))
+            self.train_data_length_end   = int(len(self.dataset) * self.split_portion_end)       
+            self.train_data_length       = self.train_data_length_begin + len(self.dataset) - self.train_data_length_end # int(len(self.dataset) * self.split_portion_begin + len(self.dataset)*(1 - self.split_portion_end))
+            
             self.valid_data_length       = int(len(self.dataset) * (self.split_portion_end - self.split_portion_begin)/2 )
 
             self.train_val_dataset  = self.dataset[np.r_[: self.train_data_length_begin + self.valid_data_length, self.train_data_length_end: len(self.dataset)]]
@@ -155,6 +158,8 @@ if __name__ == "__main__":
     parser.add_argument('--split_portion', '-spl', type=int,  default=[60, 80], nargs="*", help='Torch dataloader and Pytorch lightning split of batches')
     parser.add_argument('--split_method', '-spl_m', type=str, default= 'middle', choices=['middle', 'end'], help=' end: testing with data in the end; middle: testing with data in the middle')   
     parser.add_argument('--num_workers', type=int, default=4, help='Number of workers for data prefetch') 
+    parser.add_argument('--which_model', type=str, default='vae', help='model') 
+
     args = parser.parse_args()
 
     # args.split_method = 'end'
