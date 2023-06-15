@@ -14,6 +14,7 @@ class Model(nn.Module):
     def __init__(self, args, **kwargs):
         super().__init__()
         
+        # model selection
         self.args = args
         model_configs = kwargs.get("model_configs", None)
         if args.which_model == 'vae':
@@ -29,6 +30,11 @@ class Model(nn.Module):
         # self.data_mean = None
         # self.data_std = None
         # self.loader_length = None
+
+        # data loading ...
+        self.traindata = None
+        self.valdata = None
+        self.testdata = None
 
         if self.args.nolog:
             pass
@@ -50,69 +56,77 @@ class Model(nn.Module):
         return loss
 
 
-def train(args, 
-          model, 
-          traindata,
-          valdata,):
-    if args.which_model == "pca":
-        train_pca(args, model, traindata, valdata)
-    if args.which_model in ['vae', "conv_vae", "ae"]:
-        train_nn(args, model, traindata, valdata)
+    def train_(self):
+        args = self.args
+        if args.which_model == "pca":
+            self.load_data_pca()
+            loss_and_others = self.train_pca()
+        if args.which_model in ['vae', "conv_vae", "ae"]:
+            self.load_data_nn()
+            loss_and_others = self.train_nn()
+        return loss_and_others
 
-    
 
-def train_nn(args, 
-          model,
-          optimizer,
-          traindata, 
-          valdata, 
-          save_model = True):
-    
-    # train loop
-    model.train()
-    for epoch in range(epochs):
-        # train loop
-        for batch_idx, data in enumerate(traindata):      
-            if torch.cuda.is_available():
-                data = data.cuda()
- 
-            optimizer.zero_grad()
-            loss_ = model.loss_function(data, args, **loss_config)
-            loss = loss_['loss']
-            loss.backward()
-            optimizer.step()
+    def load_data_pca(self):
+        args = self.args
+        data = DataModule(args)
+        data.setup()
+        self.traindata, self.valdata, self.testdata = data.train_dataloader().dataset.dataset, data.val_dataloader().dataset.dataset, data.test_dataloader().dataset
+        return self.traindata, self.valdata, self.testdata
+
+    def train_pca(self):
+        #y = model(traindata, args)
+        args = self.args
+        traindata = self.traindata
+        loss = self.loss_function(traindata, args) 
+        if args.save_model == True: 
+            pass
+        if args.train_verbose:
+            return [self(traindata, args), loss]
+        else: 
+            return loss
         
-            print(loss)
+    def load_data_nn(self):
+        # dataloader  
+        args = self.args
+        data = DataModule(args)
+        data.setup()
+        self.traindata, self.valdata, self.testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+        return self.traindata, self.valdata, self.testdata
 
+    def train_nn(self):
+        traindata = self.traindata
+        valdata  = self.valdata
+        loss_config = self.args.loss_config
+        optimizer = torch.optim.Adam(self.model_block.parameters())
+        # train loop
+        self.model_block.train()
 
-        # validation loop
-        for batch_idx, data in enumerate(valdata):
-            if torch.cuda.is_available():
-                data = data.cuda()
-            loss_ = model.loss_function(data, args, **loss_config)
-            loss = loss_['loss']
-            print(f"this is validation loss: {loss}")
-def load_data_pca(args):
-    data = DataModule(args)
-    data.setup()
-    traindata, valdata, testdata = data.train_dataloader().dataset.dataset, data.val_dataloader().dataset.dataset, data.test_dataloader().dataset
-    return traindata, valdata, testdata
-
-def train_pca(args, 
-              model, 
-              traindata,
-              valdata,
-              save_model = True):
-    #y = model(traindata, args)
-    loss = model.loss_function(traindata, args) 
-    return loss
+        for epoch in range(epochs):
+            # train loop
+            for batch_idx, data in enumerate(traindata):      
+                if torch.cuda.is_available():
+                    data = data.cuda()
     
-def load_data_nn(args):
-    # dataloader  
-    data = DataModule(args)
-    data.setup()
-    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-    return traindata, valdata, testdata
+                optimizer.zero_grad()
+                loss_ = self.model_block.loss_function(data, args, **loss_config)
+                loss = loss_['loss']
+                loss.backward()
+                optimizer.step()
+            
+                print(loss)
+
+
+            # validation loop
+            for batch_idx, data in enumerate(valdata):
+                if torch.cuda.is_available():
+                    data = data.cuda()
+                loss_ = self.model_block.loss_function(data, args, **loss_config)
+                loss = loss_['loss']
+                print(f"this is validation loss: {loss}")
+
+    
+
 
 
 
@@ -125,17 +139,34 @@ if __name__ == '__main__':
     args.split_portion = [60, 80]
     args.split_method = 'middle'
     args.num_workers = 1
-    #args.which_model = "vae"   
     args.nolog = True
     epochs = 40
+    args.save_model = False
+    args.train_verbose = False
 
-    args.which_model = "pca" 
-    model_config = {'full_matrices':False, 'n_components':64}
-    model_configs = {'model_configs': model_config} 
+
+    # args.which_model = "pca" 
+    # model_config = {'full_matrices':False, 'n_components':64}
+    # model_configs = {'model_configs': model_config} 
+    
+
+    args.which_model = "vae"   
+    N = 1200
+    C = 3
+    model_config = {'input_dim': N*C}
+    model_configs = {'model_configs': model_config}  
+    loss_config   = {'M_N': 0.005}
+    args.loss_config = loss_config
 
     model = Model(args, **model_configs) # C_out   
-    traindata, valdata, testdata = load_data_pca(args)
-    loss = train_pca(args, model, traindata, valdata, save_model = True)
+    loss = model.train_()
+    print('done')
+
+
+
+
+    # traindata, valdata, testdata = load_data_pca(args)
+    # loss = train_pca(args, model, traindata, valdata, save_model = True)
    
 
     # dataloader  
@@ -147,11 +178,10 @@ if __name__ == '__main__':
 
     # # initialize model (VAE)
     # B, N, C = next(iter(traindata)).shape
-    # model_config = {'input_dim': N*C}
-    # model_configs = {'model_configs': model_config}  
-    # loss_config   = {'M_N': 0.005}
+
     # args.model_configs = model_configs  
-    # args.loss_config = loss_config
+    # 
+    
 
 
 
