@@ -23,7 +23,7 @@ class Model(nn.Module):
         elif args.which_model == "ae":
             self.model_block = AE(args, **model_configs)       
         elif args.which_model == "pca":
-            self.model_block = PCA_torch(**model_configs)   
+            self.model_block = PCA_torch(args, **model_configs)   
     
         # self.beta = args.beta
         # self.data_mean = None
@@ -63,90 +63,11 @@ def train(args,
 
 def train_nn(args, 
           model,
+          optimizer,
           traindata, 
           valdata, 
-          save_model = True,):
-     # train loop
-    model.train()
-    for epoch in range(epochs):
-        # train loop
-        for batch_idx, data in enumerate(traindata):      
-            if torch.cuda.is_available():
-                data = data.cuda()
- 
-            optimizer.zero_grad()
-            loss_ = model.loss_function(data, args, **loss_config)
-            loss = loss_['loss']
-            loss.backward()
-            optimizer.step()
-        
-            print(loss)
-
-
-        # validation loop
-        for batch_idx, data in enumerate(valdata):
-            if torch.cuda.is_available():
-                data = data.cuda()
-            loss_ = model.loss_function(data, args, **loss_config)
-            loss = loss_['loss']
-            print(f"this is validation loss: {loss}")
-
-def train_pca(args, 
-              model, 
-              traindata,
-              valdata,
-              savee_model = True):
-    pass 
+          save_model = True):
     
-def load_data_nn(args):
-    # dataloader  
-    data = DataModule(args)
-    data.setup()
-    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-    return traindata, valdata, testdata
-
-def laod_data_pca(args):
-    pass
-    data = DataModule(args)
-    data.setup()
-    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-    # traindata, valdata, testdata = train_dataloaders.dataset.dataset, val_dataloaders.dataset.dataset
-
-
-if __name__ == '__main__':
-    # arguemnts
-    parser = argparse.ArgumentParser(description='Training')
-    args = parser.parse_args()
-    args.batch_size = 16
-    args.split_portion = [60, 80]
-    args.split_method = 'middle'
-    args.num_workers = 1
-    args.which_model = "vae"   
-    args.nolog = True
-    epochs = 40
-
-    # dataloader  
-    data = DataModule(args)
-    data.setup()
-    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-
-
-    # initialize model (VAE)
-    B, N, C = next(iter(traindata)).shape
-    model_config = {'input_dim': N*C}
-    model_configs = {'model_configs': model_config}  
-    loss_config   = {'M_N': 0.005}
-    args.model_configs = model_configs  
-    args.loss_config = loss_config
-
-
-    model = Model(args, **model_configs) # C_out
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-
-    optimizer = torch.optim.Adam(model.parameters())
-
     # train loop
     model.train()
     for epoch in range(epochs):
@@ -171,6 +92,101 @@ if __name__ == '__main__':
             loss_ = model.loss_function(data, args, **loss_config)
             loss = loss_['loss']
             print(f"this is validation loss: {loss}")
+def load_data_pca(args):
+    data = DataModule(args)
+    data.setup()
+    traindata, valdata, testdata = data.train_dataloader().dataset.dataset, data.val_dataloader().dataset.dataset, data.test_dataloader().dataset
+    return traindata, valdata, testdata
+
+def train_pca(args, 
+              model, 
+              traindata,
+              valdata,
+              save_model = True):
+    #y = model(traindata, args)
+    loss = model.loss_function(traindata, args) 
+    return loss
+    
+def load_data_nn(args):
+    # dataloader  
+    data = DataModule(args)
+    data.setup()
+    traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+    return traindata, valdata, testdata
+
+
+
+
+if __name__ == '__main__':
+    # arguemnts
+    parser = argparse.ArgumentParser(description='Training')
+    args = parser.parse_args()
+    args.batch_size = 16
+    args.split_portion = [60, 80]
+    args.split_method = 'middle'
+    args.num_workers = 1
+    #args.which_model = "vae"   
+    args.nolog = True
+    epochs = 40
+
+    args.which_model = "pca" 
+    model_config = {'full_matrices':False, 'n_components':64}
+    model_configs = {'model_configs': model_config} 
+
+    model = Model(args, **model_configs) # C_out   
+    traindata, valdata, testdata = load_data_pca(args)
+    loss = train_pca(args, model, traindata, valdata, save_model = True)
+   
+
+    # dataloader  
+    # data = DataModule(args)
+    # data.setup()
+    # traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
+
+
+
+    # # initialize model (VAE)
+    # B, N, C = next(iter(traindata)).shape
+    # model_config = {'input_dim': N*C}
+    # model_configs = {'model_configs': model_config}  
+    # loss_config   = {'M_N': 0.005}
+    # args.model_configs = model_configs  
+    # args.loss_config = loss_config
+
+
+
+
+    # model = Model(args, **model_configs) # C_out
+    # if torch.cuda.is_available():
+    #     model = model.cuda()
+
+
+    # optimizer = torch.optim.Adam(model.parameters())
+
+    # # train loop
+    # model.train()
+    # for epoch in range(epochs):
+    #     # train loop
+    #     for batch_idx, data in enumerate(traindata):      
+    #         if torch.cuda.is_available():
+    #             data = data.cuda()
+ 
+    #         optimizer.zero_grad()
+    #         loss_ = model.loss_function(data, args, **loss_config)
+    #         loss = loss_['loss']
+    #         loss.backward()
+    #         optimizer.step()
+        
+    #         print(loss)
+
+
+    #     # validation loop
+    #     for batch_idx, data in enumerate(valdata):
+    #         if torch.cuda.is_available():
+    #             data = data.cuda()
+    #         loss_ = model.loss_function(data, args, **loss_config)
+    #         loss = loss_['loss']
+    #         print(f"this is validation loss: {loss}")
 
 
 
