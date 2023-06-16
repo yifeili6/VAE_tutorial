@@ -146,12 +146,12 @@ if __name__ == '__main__':
     args.save_model = False
     args.train_verbose = False
 
-    ## PCA model 
+    ###### PCA model  ###### 
     # args.which_model = "pca" 
     # model_config = {'full_matrices':False, 'n_components':64}
     # model_configs = {'model_configs': model_config} 
     
-    ## VAE model
+    ########  VAE model ###### 
     # args.which_model = "vae"   
     # N = 1200 # atom number
     # C = 3
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     # loss_config   = {'M_N': 0.005}
     # args.loss_config = loss_config
 
-    ## AE model
+    ########  AE model ###### 
     # args.which_model = "vae"   
     # N = 1200 # atom number
     # C = 3
@@ -169,7 +169,7 @@ if __name__ == '__main__':
     # loss_config   = {} 
     # args.loss_config = loss_config
 
-    ## CONV_VAE model
+    ########  CONV_VAE model ###### 
     args.which_model = "conv_vae"
     N = 100 # atom number
     args.truncate = 100
