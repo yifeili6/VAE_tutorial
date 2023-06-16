@@ -109,23 +109,25 @@ class Model(nn.Module):
                     data = data.cuda()
     
                 optimizer.zero_grad()
-                loss_ = self.model_block.loss_function(data, args, **loss_config)
+                loss_ = self.loss_function(data, args, **loss_config)
                 loss = loss_['loss']
                 loss.backward()
                 optimizer.step()
             
                 print(loss)
 
-
             # validation loop
             for batch_idx, data in enumerate(valdata):
                 if torch.cuda.is_available():
                     data = data.cuda()
-                loss_ = self.model_block.loss_function(data, args, **loss_config)
+                loss_ = self.loss_function(data, args, **loss_config)
                 loss = loss_['loss']
                 print(f"this is validation loss: {loss}")
 
-    
+        if args.train_verbose:
+            return [loss_ ]
+        else: 
+            return loss    
 
 
 
@@ -144,79 +146,49 @@ if __name__ == '__main__':
     args.save_model = False
     args.train_verbose = False
 
-
+    ## PCA model 
     # args.which_model = "pca" 
     # model_config = {'full_matrices':False, 'n_components':64}
     # model_configs = {'model_configs': model_config} 
     
+    ## VAE model
+    # args.which_model = "vae"   
+    # N = 1200 # atom number
+    # C = 3
+    # model_config = {'input_dim': N*C}
+    # model_configs = {'model_configs': model_config}  
+    # loss_config   = {'M_N': 0.005}
+    # args.loss_config = loss_config
 
-    args.which_model = "vae"   
-    N = 1200
-    C = 3
-    model_config = {'input_dim': N*C}
-    model_configs = {'model_configs': model_config}  
+    ## AE model
+    # args.which_model = "vae"   
+    # N = 1200 # atom number
+    # C = 3
+    # model_config  = {'input_dim': N*C}
+    # model_configs = {'model_configs': model_config}    
+    # loss_config   = {} 
+    # args.loss_config = loss_config
+
+    ## CONV_VAE model
+    args.which_model = "conv_vae"
+    N = 100 # atom number
+    args.truncate = 100
+
+    model_config = {'input_dim': N, 
+                    'in_channels': 1, 
+                    'latent_dim': 64} 
+    model_configs = {'model_configs': model_config}    
     loss_config   = {'M_N': 0.005}
-    args.loss_config = loss_config
+    args.loss_config = loss_config 
 
-    model = Model(args, **model_configs) # C_out   
-    loss = model.train_()
-    print('done')
-
-
-
-
-    # traindata, valdata, testdata = load_data_pca(args)
-    # loss = train_pca(args, model, traindata, valdata, save_model = True)
-   
-
-    # dataloader  
-    # data = DataModule(args)
-    # data.setup()
-    # traindata, valdata, testdata = data.train_dataloader(), data.val_dataloader(), data.test_dataloader()
-
-
-
-    # # initialize model (VAE)
-    # B, N, C = next(iter(traindata)).shape
-
-    # args.model_configs = model_configs  
-    # 
     
+    model = Model(args, **model_configs) 
+    loss = model.train_()
 
 
 
 
-    # model = Model(args, **model_configs) # C_out
-    # if torch.cuda.is_available():
-    #     model = model.cuda()
 
-
-    # optimizer = torch.optim.Adam(model.parameters())
-
-    # # train loop
-    # model.train()
-    # for epoch in range(epochs):
-    #     # train loop
-    #     for batch_idx, data in enumerate(traindata):      
-    #         if torch.cuda.is_available():
-    #             data = data.cuda()
- 
-    #         optimizer.zero_grad()
-    #         loss_ = model.loss_function(data, args, **loss_config)
-    #         loss = loss_['loss']
-    #         loss.backward()
-    #         optimizer.step()
-        
-    #         print(loss)
-
-
-    #     # validation loop
-    #     for batch_idx, data in enumerate(valdata):
-    #         if torch.cuda.is_available():
-    #             data = data.cuda()
-    #         loss_ = model.loss_function(data, args, **loss_config)
-    #         loss = loss_['loss']
-    #         print(f"this is validation loss: {loss}")
 
 
 

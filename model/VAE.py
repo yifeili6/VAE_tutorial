@@ -106,7 +106,7 @@ class VAE(nn.Module):
         mu, log_var = self.encode(input)
         z = self.reparameterize(mu, log_var)
         out = self.decode(z, input)
-        return  [out, input, mu, log_var]
+        return  [out, input, mu, log_var, z]
     
     def loss_function(self,
                       *args,
@@ -118,7 +118,7 @@ class VAE(nn.Module):
         :param kwargs:
         :return:
         """
-        recons, input, mu, log_var = args
+        recons, input, mu, log_var, z = args
         kld_weight = kwargs.get("M_N", 0.1)
 
         recons_loss = F.mse_loss(recons, input)
@@ -127,7 +127,6 @@ class VAE(nn.Module):
         loss = recons_loss + kld_weight * kld_loss
         return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':-kld_loss.detach()}
             
-        return {'loss': recons_loss}
 
     def sample(self,
                B:int,

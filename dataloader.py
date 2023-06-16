@@ -18,7 +18,11 @@ class ProteinDataset(torch.utils.data.Dataset):
         # else:
         self.trajectory, self.mean, self.std = self.normalize(self.trajectory) #Raw (x,y,z) to Normalized (x,y,z)
         #np.save(args.standard_file, torch.stack([self.mean, self.std], dim=0).detach().cpu().numpy() )
-        assert self.reference.ndim == 3 and self.trajectory.ndim == 3, "dimensions are incorrect..."
+        if args.which_model == 'conv_vae':
+            assert self.reference.ndim == 4 and self.trajectory.ndim == 4, "dimensions are incorrect..."
+        else: 
+            assert self.reference.ndim == 3 and self.trajectory.ndim == 3, "dimensions are incorrect..."
+
         self.min = None
         self.max = None
         
@@ -56,42 +60,112 @@ class ProteinDataset(torch.utils.data.Dataset):
 def extract_trajectory(args):
     N = 1200 # Number of atoms
     B = 128   # Batch size   
-    if args.which_model =='conv_vae':
-        data = torch.randn(B, 1, N, N)
-        # fake open state data        
-        mean = 100
-        std = 10    
-        data_open = std * data + mean
-        # fake close state data 
-        mean = 200
-        std = 5       
-        data_close = std * data + mean   
-        reference = data_open[0][None]
-        trajectory = torch.cat([data_open, data_close], dim=0)            
+    # if args.which_model =='conv_vae':
+    #     data = torch.randn(B, 1, N, N)
+    #     # fake open state data        
+    #     mean = 100
+    #     std = 10    
+    #     data_open = std * data + mean
+    #     # fake close state data 
+    #     mean = 200
+    #     std = 5       
+    #     data_close = std * data + mean   
+    #     reference = data_open[0][None]
+    #     trajectory = torch.cat([data_open, data_close], dim=0)            
 
-    else:
-        data = torch.randn(B, N, 3)
-        # fake open state data
-        mean = 100
-        std = 10    
-        data_open = std * data + mean
+    # else:
+    data = torch.randn(B, N, 3)
+    # fake open state data
+    mean = 100
+    std = 10    
+    data_open = std * data + mean
 
-        # fake close state data 
-        mean = 200
-        std = 5       
-        data_close = std * data + mean
+    # fake close state data 
+    mean = 200
+    std = 5       
+    data_close = std * data + mean
 
-        reference = data_open[0][None]
-        trajectory = torch.cat([data_open, data_close], dim=0)
+    reference = data_open[0][None]
+    trajectory = torch.cat([data_open, data_close], dim=0)
     return reference, trajectory
     
 
+class ProteinDatasetDistogram(torch.utils.data.Dataset):
+    """Normalized dataset and reverse-normalization happens here..."""
+    def __init__(self, args: argparse.ArgumentParser, dataset: List[Union[torch.Tensor, np.array]]):
+        super().__init__()
+        self.args = args
+        self.reference = dataset[0]
+        self.trajectory = dataset[1]
+        # if os.path.exists(args.standard_file_distogram):
+        #     mean_and_std_of_trained = torch.from_numpy(np.load(args.standard_file_distogram))
+        #     mean, std = mean_and_std_of_trained[0], mean_and_std_of_trained[1]
+        #     self.trajectory, self.mean, self.std = self.normalize(self.trajectory, mean, std) #Raw (x,y,z) to Normalized (x,y,z)
+        #     self.min, self.max = self.trajectory.min(), self.trajectory.max()
+        #     self.trajectory = (self.trajectory - self.min) / (self.max - self.min) #2nd normalization; range [0-1]
+        # else:
+        self.trajectory, self.mean, self.std = self.normalize(self.trajectory) #Raw (x,y,z) to Normalized (x,y,z)
+        #np.save(args.standard_file_distogram, torch.stack([self.mean, self.std], dim=0).detach().cpu().numpy() )
+        self.min, self.max = self.trajectory.min(), self.trajectory.max()
+        self.trajectory = (self.trajectory - self.min) / (self.max - self.min) #2nd normalization; range [0-1]
+        assert self.reference.ndim == 3 and self.trajectory.ndim == 4, "dimensions are incorrect..."
+        # self.min = None
+        # self.max = None
+        
+    def __len__(self):
+        return len(self.trajectory) #train length...
+    
+    def __getitem__(self, idx):
+        assert isinstance(self.args.truncate, int), "truncate argument for window selection for distogram must be an integer..."
+        b, c, d0, d1 = self.trajectory.size()
+        
+        if self.args.truncate > 0:
+            start = np.random.randint(d0 - self.args.truncate) #choose an integer btw [0, d-truncate]
+            end = start + self.args.truncate
+            dists = self.trajectory[idx, :, start:end, start:end] #B,1,trunc,trunc
+            # print(start, end, dists.shape)
+            dists = dists.contiguous()
+            return dists #, torch.LongTensor([start, end])
+        else:
+            dists = self.trajectory[idx]
+            dists = dists.contiguous()
+            return dists #, None
+        
+    def normalize(self, coords, mean=None, std=None):
+        batch_dists = torch.cdist(coords, coords) #BLL
+        if mean == None or std == None:
+            mean = batch_dists.mean(dim=0) #(LL)
+            std = batch_dists.std(dim=0) #(LL)
+            dists_ = (batch_dists - mean) / std #BLL
+            dists_ = dists_[:,None,...] #->B1LL
+            return dists_, mean, std #B1LL, LL, LL
+        else:
+            dists_ = (batch_dists - mean) / std
+            dists_ = dists_[:,None,...] #->B1LL
+            return dists_, mean, std  #B1LL, LL, LL
+
+    @staticmethod
+    def unnormalize(dists, mean=None, std=None, min=None, max=None, index: torch.LongTensor=None):
+        # print(dists.shape, mean.shape, std.shape)
+        b, _, l0, l1 = dists.size() #B1LL
+        dists = dists.view(b, l0, l1) #-> BLL
+        dists = dists * (max - min) + min
+        assert mean != None and std != None and min != None and max != None, "Wrong arguments..."
+        dists_ = (dists * std) + mean #BLL
+        # dists_ = dists_[:,index[:,0]:index]
+        #WIP for indexing of distance!
+        # if index[0] is not None:
+        #     dists_ = torch.stack([dists_[i, s:e, s:e] for i, (s,e) in enumerate(index.unbind(dim=0))], dim=0) #->BLL
+        # else:
+        #     pass
+        return dists_ #Reconstructed unscaled BLL
+    
 
 class DataModule():
     def __init__(self, args=None, **kwargs):
         super(DataModule, self).__init__()
         datasets = extract_trajectory(args) #tuple of reference and traj
-        self.dataset = ProteinDataset(args, datasets) # if not args.distogram else ProteinDatasetDistogram(args, datasets)
+        self.dataset = ProteinDataset(args, datasets) if args.which_model != 'conv_vae' else ProteinDatasetDistogram(args, datasets)
         self.reference = self.dataset.reference #Reference data of (1,L,3); This is Unscaled (real XYZ)
         self.mean = self.dataset.mean
         self.std = self.dataset.std
